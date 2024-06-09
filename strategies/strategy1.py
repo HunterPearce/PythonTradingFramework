@@ -8,11 +8,13 @@ class BollingerKeltnerChaikinSMAStrategy(Strategy):
     Bollinger-Keltner Chaikin SMA Strategy
     --------------------------------------
     This strategy combines Bollinger Bands, Keltner Channels, the Chaikin Oscillator, 
-    and a Simple Moving Average (SMA) to generate buy and sell signals. The strategy 
-    buys when the upper Bollinger Band is below the upper Keltner Band, the lower 
+    and a Simple Moving Average (SMA) to generate buy and sell signals. 
+
+    The strategy buys when the upper Bollinger Band is below the upper Keltner Band, the lower 
     Bollinger Band is above the lower Keltner Band, the Chaikin Oscillator is above 
-    zero, and the close price is above the 100-period SMA. It sells when the opposite 
-    conditions are met.
+    zero, and the 100-period SMA is rising. 
+
+    It sells when the opposite conditions are met.
     """
 
     def __init__(self, position_size=0.02, stop_loss=0.05, profit_target1=2, partial_sell1=0.5, profit_target2=2.5, partial_sell2=0.5, days_threshold=10, price_threshold=0.05):
@@ -26,9 +28,6 @@ class BollingerKeltnerChaikinSMAStrategy(Strategy):
         self.price_threshold = price_threshold
 
     def apply_indicators(self, df):
-        """
-        Applies the required technical indicators to the DataFrame.
-        """
         # Apply Bollinger Bands
         bb = ta.bbands(df['Close'], length=20)
         df['bb_upper'] = bb['BBU_20_2.0']
@@ -48,33 +47,27 @@ class BollingerKeltnerChaikinSMAStrategy(Strategy):
         return df
 
     def generate_signals(self, df):
-        """
-        Generates buy and sell signals based on the applied indicators.
-        """
-        # Generate buy signals
+        # Generate buy signals (Enter Long)
         df['signal_long'] = np.where(
             (df['bb_upper'] < df['kc_upper']) &
             (df['bb_lower'] > df['kc_lower']) &
             (df['chaikin'] > 0) &
-            (df['Close'] > df['sma_100'].shift(1)),
+            (df['Close'] > df['sma_100']),
             1, 0
         )
         
-        # Generate sell signals
+        # Generate sell signals (Enter Short)
         df['signal_short'] = np.where(
             (df['bb_upper'] < df['kc_upper']) &
             (df['bb_lower'] > df['kc_lower']) &
             (df['chaikin'] < 0) &
-            (df['Close'] < df['sma_100'].shift(1)),
+            (df['Close'] < df['sma_100']),
             -1, 0
         )
         
         return df
 
     def execute(self, df):
-        """
-        Executes the strategy by applying indicators and generating signals.
-        """
         df = self.apply_indicators(df)
         df = self.generate_signals(df)
         buy_signals = df[df['signal_long'] == 1][['Close']]
