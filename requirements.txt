@@ -3,3 +3,4 @@ numpy
 yfinance
 matplotlib
 datetime
+pandas_ta
