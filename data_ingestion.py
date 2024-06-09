@@ -12,12 +12,9 @@ def fetch_stock_data(ticker, start_date, end_date):
 def save_to_csv(data, filename):
     directory = os.path.dirname(filename)
     if not os.path.exists(directory):
-        print(f"Directory {directory} does not exist. Creating it.")
         os.makedirs(directory, exist_ok=True)
     else:
         print(f"Directory {directory} already exists.")
-    
-    print(f"Saving data to {filename}")
     data.to_csv(filename)
     print("Data saved successfully.")
 
