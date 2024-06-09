@@ -42,10 +42,10 @@ def run_strategy(framework, strategy_name, data):
     buy_signals, sell_signals = framework.run_strategy(strategy_name, data)
     return buy_signals, sell_signals
 
-def save_signals_to_csv(buy_signals, sell_signals, ticker, strategy_name):
+def save_signals_to_csv(buy_signals, sell_signals, option, strategy_name):
     signals_dir = os.path.join(os.path.dirname(__file__), 'signals', strategy_name)
     os.makedirs(signals_dir, exist_ok=True)
-    filename = os.path.join(signals_dir, f"{ticker.lower()}_signals.csv")
+    filename = os.path.join(signals_dir, f"{option.lower()}_signals.csv")
     
     with open(filename, 'w') as f:
         f.write("Buy Signals:\n")
@@ -99,7 +99,7 @@ def main():
     buy_signals, sell_signals = run_strategy(framework, strategy_name, data)
     
     # Save signals to CSV
-    save_signals_to_csv(buy_signals, sell_signals, ticker, strategy_name)
+    save_signals_to_csv(buy_signals, sell_signals, option, strategy_name)
 
     # Print results
     print_signals(data, buy_signals, sell_signals)
