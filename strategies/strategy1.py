@@ -8,8 +8,8 @@ class BollingerKeltnerChaikinSMAStrategy(Strategy):
     Bollinger-Keltner Chaikin SMA Strategy
     --------------------------------------
     This strategy combines Bollinger Bands, Keltner Channels, the Chaikin Oscillator, 
-    and a Simple Moving Average (SMA) to generate buy and sell signals. 
-
+    and a Simple Moving Average (SMA) to generate buy and sell signals.
+    
     The strategy buys when the upper Bollinger Band is below the upper Keltner Band, the lower 
     Bollinger Band is above the lower Keltner Band, the Chaikin Oscillator is above 
     zero, and the 100-period SMA is rising. 

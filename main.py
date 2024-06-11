@@ -2,9 +2,11 @@ import os
 import pandas as pd
 from datetime import datetime
 from trading_framework import TradingFramework
+from backtesting_framework import BacktestingFramework
 from strategies.strategy1 import BollingerKeltnerChaikinSMAStrategy
 from strategies.strategy2 import Strategy2
-from data_ingestion import process_data
+from data_ingestion import fetch_stock_data, save_to_csv, process_data
+import config
 
 def load_list_from_file(filename):
     with open(filename, 'r') as file:
@@ -34,32 +36,18 @@ def process_selected_data(ticker, option, start_date, end_date):
     data = pd.read_csv(filename, index_col='Date', parse_dates=True)
     return data
 
-def initialize_framework():
-    framework = TradingFramework()
-    return framework
-
-def run_strategy(framework, strategy_name, data):
-    buy_signals, sell_signals = framework.run_strategy(strategy_name, data)
-    return buy_signals, sell_signals
-
-def save_signals_to_csv(buy_signals, sell_signals, option, strategy_name):
-    signals_dir = os.path.join(os.path.dirname(__file__), 'signals', strategy_name)
-    os.makedirs(signals_dir, exist_ok=True)
-    filename = os.path.join(signals_dir, f"{option.lower()}_signals.csv")
+def save_backtesting_results(performance, trade_history, metrics, data_with_signals, filename):
+    # Combine all data into a single DataFrame
+    combined_df = pd.concat([
+        performance.assign(Type='Performance').reset_index(),
+        trade_history.assign(Type='Trade History').reset_index(drop=True),
+        pd.DataFrame(metrics.items(), columns=['Metric', 'Value']).assign(Type='Metrics', Date=''),
+        data_with_signals.assign(Type='Data with Signals').reset_index()
+    ], axis=1)
     
-    with open(filename, 'w') as f:
-        f.write("Buy Signals:\n")
-        buy_signals.to_csv(f)
-        f.write("\nSell Signals:\n")
-        sell_signals.to_csv(f)
-    
-    print(f"Signals saved to {filename}")
-
-def print_signals(data, buy_signals, sell_signals):
-    print("Buy signals:")
-    print(data.loc[buy_signals.index, 'Close'])
-    print("Sell signals:")
-    print(data.loc[sell_signals.index, 'Close'])
+    # Save combined DataFrame to CSV
+    combined_df.to_csv(filename, index=False)
+    print(f"Backtesting results saved to {filename}")
 
 def main():
     # Load options and tickers from text files
@@ -92,17 +80,51 @@ def main():
 
     # Process data
     data = process_selected_data(ticker, option, start_date, end_date)
-    
-    # Initialize framework and run the selected strategy
-    framework = initialize_framework()
-    framework.add_strategy(strategy_name, strategies[strategy_name]())
-    buy_signals, sell_signals = run_strategy(framework, strategy_name, data)
-    
-    # Save signals to CSV
-    save_signals_to_csv(buy_signals, sell_signals, option, strategy_name)
 
-    # Print results
-    print_signals(data, buy_signals, sell_signals)
+    # Initialize framework and run the selected strategy
+    trading_framework = TradingFramework()
+    trading_framework.add_strategy(strategy_name, strategies[strategy_name]())
+    buy_signals, sell_signals = trading_framework.run_strategy(strategy_name, data)
+
+    # Add signals to data
+    data['buy_signal'] = buy_signals
+    data['sell_signal'] = sell_signals
+
+    # Initialize backtesting framework and apply signals
+    backtesting_framework = BacktestingFramework(
+        config.initial_balance,
+        config.position_size,
+        config.stop_loss,
+        config.profit_target1,
+        config.partial_sell1,
+        config.profit_target2,
+        config.partial_sell2,
+        config.days_threshold,
+        config.price_threshold
+    )
+    backtesting_framework.apply_signals(data, buy_signals, sell_signals)
+
+    # Output performance
+    performance = backtesting_framework.get_performance()
+    trade_history = backtesting_framework.get_trade_history()
+    metrics = backtesting_framework.calculate_metrics()
+
+    # Save results to CSV
+    results_dir = "backtesting_results"
+    if not os.path.exists(results_dir):
+        os.makedirs(results_dir)
+
+    results_filename = os.path.join(results_dir, f"{ticker}_{strategy_name}backtesting_results_.csv")
+    save_backtesting_results(performance, trade_history, metrics, data, results_filename)
+
+    print("Backtesting complete.")
+    print("Performance Summary:")
+    print(performance)
+    print("Trade History:")
+    print(trade_history)
+    print("Metrics:")
+    for metric, value in metrics.items():
+        print(f"{metric}: {value:.2%}")
 
 if __name__ == "__main__":
     main()

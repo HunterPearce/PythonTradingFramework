@@ -1,3 +1,6 @@
-class Strategy:
+from abc import ABC, abstractmethod
+
+class Strategy(ABC):
+    @abstractmethod
     def execute(self, data):
-        raise NotImplementedError("Strategy must implement the execute method")
+        pass
