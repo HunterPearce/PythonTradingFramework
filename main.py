@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 from datetime import datetime
-from framework import TradingFramework
+from trading_framework import TradingFramework
 from strategies.strategy1 import BollingerKeltnerChaikinSMAStrategy
 from strategies.strategy2 import Strategy2
 from data_ingestion import process_data
