@@ -1,12 +1,11 @@
 import os
 import pandas as pd
 from datetime import datetime
-from trading_framework import TradingFramework
-from backtesting_framework import BacktestingFramework
+from strategies.backtesting_framework import BacktestingFramework  # Ensure this points to your actual backtesting framework file
 from strategies.strategy1 import BollingerKeltnerChaikinSMAStrategy
 from strategies.strategy2 import Strategy2
 from data_ingestion import fetch_stock_data, save_to_csv, process_data
-import config
+import config  # Import the configuration values
 
 def load_list_from_file(filename):
     with open(filename, 'r') as file:
@@ -36,16 +35,12 @@ def process_selected_data(ticker, option, start_date, end_date):
     data = pd.read_csv(filename, index_col='Date', parse_dates=True)
     return data
 
-def save_backtesting_results(performance, trade_history, metrics, data_with_signals, filename):
-    # Combine all data into a single DataFrame
-    combined_df = pd.concat([
-        performance.assign(Type='Performance').reset_index(),
-        trade_history.assign(Type='Trade History').reset_index(drop=True),
-        pd.DataFrame(metrics.items(), columns=['Metric', 'Value']).assign(Type='Metrics', Date=''),
-        data_with_signals.assign(Type='Data with Signals').reset_index()
-    ], axis=1)
-    
-    # Save combined DataFrame to CSV
+def save_backtesting_results(performance, trade_history, metrics, filename):
+    # Combine trade history and metrics into a single DataFrame
+    trade_history_df = pd.DataFrame(trade_history)
+    metrics_df = pd.DataFrame(list(metrics.items()), columns=['Metric', 'Value'])
+    metrics_df['date'] = None
+    combined_df = pd.concat([trade_history_df, metrics_df], axis=0, ignore_index=True)
     combined_df.to_csv(filename, index=False)
     print(f"Backtesting results saved to {filename}")
 
@@ -81,16 +76,6 @@ def main():
     # Process data
     data = process_selected_data(ticker, option, start_date, end_date)
 
-    # Initialize framework and run the selected strategy
-    trading_framework = TradingFramework()
-    trading_framework.add_strategy(strategy_name, strategies[strategy_name]())
-    buy_signals, sell_signals = trading_framework.run_strategy(strategy_name, data)
-
-    # Add signals to data
-    data['buy_signal'] = buy_signals
-    data['sell_signal'] = sell_signals
-
-    # Initialize backtesting framework and apply signals
     backtesting_framework = BacktestingFramework(
         config.initial_balance,
         config.position_size,
@@ -100,13 +85,25 @@ def main():
         config.profit_target2,
         config.partial_sell2,
         config.days_threshold,
-        config.price_threshold
+        config.price_threshold,
     )
-    backtesting_framework.apply_signals(data, buy_signals, sell_signals)
 
-    # Output performance
+    # Instantiate selected strategy
+    strategy_instance = strategies[strategy_name]()
+
+    # Apply strategy to data
+    long_signals, short_signals = strategy_instance.execute(data)
+    backtesting_framework.apply_signals(data, long_signals, short_signals)
+
+    # Get performance and trade history
     performance = backtesting_framework.get_performance()
     trade_history = backtesting_framework.get_trade_history()
+    
+    # Calculate profits
+    initial_balance = config.initial_balance
+    trade_history['profit'] = trade_history['balance'] - initial_balance
+    trade_history = trade_history.to_dict(orient='records')
+    
     metrics = backtesting_framework.calculate_metrics()
 
     # Save results to CSV
@@ -114,17 +111,20 @@ def main():
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
 
-    results_filename = os.path.join(results_dir, f"{ticker}_{strategy_name}backtesting_results_.csv")
-    save_backtesting_results(performance, trade_history, metrics, data, results_filename)
+    results_filename = os.path.join(results_dir, f"{ticker}_{strategy_name}_backtesting_results.csv")
+    save_backtesting_results(performance, trade_history, metrics, results_filename)
 
     print("Backtesting complete.")
     print("Performance Summary:")
     print(performance)
     print("Trade History:")
-    print(trade_history)
+    print(pd.DataFrame(trade_history))
     print("Metrics:")
     for metric, value in metrics.items():
-        print(f"{metric}: {value:.2%}")
+        if metric in ['Total Return', 'Annualized Return', 'Annualized Volatility', 'Max Drawdown']:
+            print(f"{metric}: {value * 100:.2f}%")
+        else:
+            print(f"{metric}: {value:.2f}")
 
 if __name__ == "__main__":
     main()
