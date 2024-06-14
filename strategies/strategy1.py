@@ -16,7 +16,7 @@ class BollingerKeltnerChaikinSMAStrategy:
     It goes short when the opposite conditions are met.
     """
 
-    def __init__(self, position_size=0.02, stop_loss=0.05, profit_target1=.5, partial_sell1=0.5, profit_target2=1, partial_sell2=0.5, days_threshold=10, price_threshold=0.05):
+    def __init__(self, position_size=0.02, stop_loss=0.05, profit_target1=.2, partial_sell1=0.5, profit_target2=.5, partial_sell2=0.5, days_threshold=10, price_threshold=0.05):
         self.position_size = position_size
         self.stop_loss = stop_loss
         self.profit_target1 = profit_target1

@@ -1,9 +1,9 @@
 initial_balance = 100000
 position_size = 0.02
 stop_loss = 0.05
-profit_target1 = .5
+profit_target1 = .1
 partial_sell1 = 0.5
-profit_target2 = 1
+profit_target2 = .2
 partial_sell2 = 0.5
-days_threshold = 10
+days_threshold = 30
 price_threshold = 0.05

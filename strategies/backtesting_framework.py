@@ -25,7 +25,6 @@ class BacktestingFramework:
             self.apply_trading_rules(row)
 
     def apply_trading_rules(self, row):
-        # Only one trade (either long or short) can be open at a time
         if row['long_signal'] and not self.positions:
             self.enter_long(row)
         elif row['short_signal'] and not self.positions:
@@ -35,7 +34,6 @@ class BacktestingFramework:
         self.equity_curve.append({'date': row.name, 'balance': self.balance})
 
     def enter_long(self, row):
-        # Calculate position size based on the updated balance
         position_size = self.balance * self.position_size
         quantity = position_size / row['Close']
         stop_loss_price = row['Close'] * (1 - self.stop_loss)
@@ -45,6 +43,7 @@ class BacktestingFramework:
             'quantity': quantity,
             'stop_loss': stop_loss_price,
             'date': row.name,
+            'initial_investment': position_size,
             'target1_reached': False,
             'target2_reached': False
         })
@@ -52,7 +51,6 @@ class BacktestingFramework:
         self.trade_history.append({'type': 'long', 'price': row['Close'], 'quantity': quantity, 'date': row.name, 'balance': self.balance})
 
     def enter_short(self, row):
-        # Calculate position size based on the updated balance
         position_size = self.balance * self.position_size
         quantity = position_size / row['Close']
         stop_loss_price = row['Close'] * (1 + self.stop_loss)
@@ -62,6 +60,7 @@ class BacktestingFramework:
             'quantity': quantity,
             'stop_loss': stop_loss_price,
             'date': row.name,
+            'initial_investment': position_size,
             'target1_reached': False,
             'target2_reached': False
         })
@@ -76,33 +75,35 @@ class BacktestingFramework:
                 self.check_exit_short(position, row)
 
     def check_exit_long(self, position, row):
-        if not position['target1_reached'] and row['Close'] >= position['entry_price'] * self.profit_target1:
+        current_value = position['quantity'] * row['Close']
+        if not position['target1_reached'] and current_value >= position['initial_investment'] * (1 + self.profit_target1):
             self.partial_exit(position, row, self.partial_sell1)
             position['stop_loss'] = position['entry_price'] * 1.2
             position['target1_reached'] = True
-        elif position['target1_reached'] and not position['target2_reached'] and row['Close'] >= position['entry_price'] * self.profit_target2:
+        elif position['target1_reached'] and not position['target2_reached'] and current_value >= position['initial_investment'] * (1 + self.profit_target2):
             self.partial_exit(position, row, self.partial_sell2)
             position['stop_loss'] = position['entry_price'] * 1.2
             position['target2_reached'] = True
-        elif row['Close'] >= position['entry_price'] * 3:
+        elif current_value >= position['initial_investment'] * 3:
             self.full_exit(position, row)
-        elif (row.name - position['date']).days >= self.days_threshold and (row['Close'] - position['entry_price']) / position['entry_price'] <= self.price_threshold:
+        elif (row.name - position['date']).days >= self.days_threshold and (current_value - position['initial_investment']) / position['initial_investment'] <= self.price_threshold:
             self.full_exit(position, row)
         elif row['Close'] < position['stop_loss']:
             self.full_exit(position, row)
 
     def check_exit_short(self, position, row):
-        if not position['target1_reached'] and row['Close'] <= position['entry_price'] * (1 - self.profit_target1):
+        current_value = position['quantity'] * row['Close']
+        if not position['target1_reached'] and current_value <= position['initial_investment'] * (1 - self.profit_target1):
             self.partial_exit(position, row, self.partial_sell1)
             position['stop_loss'] = position['entry_price'] * 0.8
             position['target1_reached'] = True
-        elif position['target1_reached'] and not position['target2_reached'] and row['Close'] <= position['entry_price'] * (1 - self.profit_target2):
+        elif position['target1_reached'] and not position['target2_reached'] and current_value <= position['initial_investment'] * (1 - self.profit_target2):
             self.partial_exit(position, row, self.partial_sell2)
             position['stop_loss'] = position['entry_price'] * 0.8
             position['target2_reached'] = True
-        elif row['Close'] <= position['entry_price'] * 0.5:
+        elif current_value <= position['initial_investment'] * 0.5:
             self.full_exit(position, row)
-        elif (row.name - position['date']).days >= self.days_threshold and (position['entry_price'] - row['Close']) / position['entry_price'] <= self.price_threshold:
+        elif (row.name - position['date']).days >= self.days_threshold and (position['initial_investment'] - current_value) / position['initial_investment'] <= self.price_threshold:
             self.full_exit(position, row)
         elif row['Close'] > position['stop_loss']:
             self.full_exit(position, row)

@@ -76,6 +76,7 @@ def main():
     # Process data
     data = process_selected_data(ticker, option, start_date, end_date)
 
+    # Initialize the backtesting framework with the configuration values
     backtesting_framework = BacktestingFramework(
         config.initial_balance,
         config.position_size,
@@ -88,7 +89,7 @@ def main():
         config.price_threshold,
     )
 
-    # Instantiate selected strategy
+    # Instantiate the selected strategy
     strategy_instance = strategies[strategy_name]()
 
     # Apply strategy to data
