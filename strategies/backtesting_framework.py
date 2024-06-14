@@ -92,11 +92,11 @@ class BacktestingFramework:
             self.full_exit(position, row)
 
     def check_exit_short(self, position, row):
-        if not position['target1_reached'] and row['Close'] <= position['entry_price'] * self.profit_target1:
+        if not position['target1_reached'] and row['Close'] <= position['entry_price'] * (1 - self.profit_target1):
             self.partial_exit(position, row, self.partial_sell1)
             position['stop_loss'] = position['entry_price'] * 0.8
             position['target1_reached'] = True
-        elif position['target1_reached'] and not position['target2_reached'] and row['Close'] <= position['entry_price'] * self.profit_target2:
+        elif position['target1_reached'] and not position['target2_reached'] and row['Close'] <= position['entry_price'] * (1 - self.profit_target2):
             self.partial_exit(position, row, self.partial_sell2)
             position['stop_loss'] = position['entry_price'] * 0.8
             position['target2_reached'] = True

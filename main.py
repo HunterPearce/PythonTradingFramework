@@ -98,10 +98,16 @@ def main():
     # Get performance and trade history
     performance = backtesting_framework.get_performance()
     trade_history = backtesting_framework.get_trade_history()
-    
-    # Calculate profits
-    initial_balance = config.initial_balance
-    trade_history['profit'] = trade_history['balance'] - initial_balance
+
+    # Corrected profit calculation only for rows with 'full_exit'
+    last_full_exit_balance = config.initial_balance
+    trade_history['profit'] = 0
+
+    for i, row in trade_history.iterrows():
+        if row['type'] == 'full_exit':
+            trade_history.at[i, 'profit'] = row['balance'] - last_full_exit_balance
+            last_full_exit_balance = row['balance']
+
     trade_history = trade_history.to_dict(orient='records')
     
     metrics = backtesting_framework.calculate_metrics()
