@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-class BacktestingFramework:
+class Strategy1Backtesting:
     def __init__(self, initial_balance, position_size, stop_loss, profit_target1, partial_sell1, profit_target2, partial_sell2, days_threshold, price_threshold):
         self.initial_balance = initial_balance
         self.balance = initial_balance

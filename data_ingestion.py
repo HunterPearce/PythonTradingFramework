@@ -1,7 +1,6 @@
 import os
 import yfinance as yf
 import pandas as pd
-from datetime import datetime
 
 def fetch_stock_data(ticker, start_date, end_date):
     print(f"Fetching data for {ticker} from {start_date} to {end_date}")

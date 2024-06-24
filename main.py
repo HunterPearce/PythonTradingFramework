@@ -1,11 +1,11 @@
 import os
 import pandas as pd
 from datetime import datetime
-from strategies.backtesting_framework import BacktestingFramework  # Ensure this points to your actual backtesting framework file
+from strategies.Strategy1_Backtesting import Strategy1Backtesting
 from strategies.strategy1 import BollingerKeltnerChaikinSMAStrategy
 from strategies.strategy2 import Strategy2
-from data_ingestion import fetch_stock_data, save_to_csv, process_data
-import config  # Import the configuration values
+from data_ingestion import process_data
+import config
 
 def load_list_from_file(filename):
     with open(filename, 'r') as file:
@@ -55,29 +55,34 @@ def main():
         return
     option = options[tickers.index(ticker)]
 
-    # Define available strategies
+    # Define available strategies and backtesting frameworks
     strategies = {
         'BollingerKeltnerChaikinSMAStrategy': BollingerKeltnerChaikinSMAStrategy,
         'Strategy2': Strategy2,
-        # Add more strategies here as needed
+    }
+    backtesting_frameworks = {
+        'Strategy1Backtesting': Strategy1Backtesting,
     }
 
     strategy_names = list(strategies.keys())
+    backtesting_framework_names = list(backtesting_frameworks.keys())
 
-    # Get the user's choice of strategy
     strategy_name = get_user_selection(strategy_names, "Please select a strategy by entering the corresponding number:")
     if strategy_name is None:
+        return
+
+    backtesting_framework_name = get_user_selection(backtesting_framework_names, "Please select a backtesting framework by entering the corresponding number:")
+    if backtesting_framework_name is None:
         return
 
     # Set date range for data fetching
     start_date = "2020-01-01"
     end_date = datetime.today().strftime('%Y-%m-%d')
 
-    # Process data
     data = process_selected_data(ticker, option, start_date, end_date)
 
-    # Initialize the backtesting framework with the configuration values
-    backtesting_framework = BacktestingFramework(
+    Backtesting = backtesting_frameworks[backtesting_framework_name]
+    backtesting_framework = Backtesting(
         config.initial_balance,
         config.position_size,
         config.stop_loss,
@@ -118,7 +123,7 @@ def main():
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
 
-    results_filename = os.path.join(results_dir, f"{ticker}_{strategy_name}_backtesting_results.csv")
+    results_filename = os.path.join(results_dir, f"{ticker}_{strategy_name}_{backtesting_framework_name}_backtesting_results.csv")
     save_backtesting_results(performance, trade_history, metrics, results_filename)
 
     print("Backtesting complete.")

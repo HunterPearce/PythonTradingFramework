@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import pandas_ta as ta
+import config
 
 class BollingerKeltnerChaikinSMAStrategy:
     """
@@ -16,15 +17,15 @@ class BollingerKeltnerChaikinSMAStrategy:
     It goes short when the opposite conditions are met.
     """
 
-    def __init__(self, position_size=0.02, stop_loss=0.05, profit_target1=.2, partial_sell1=0.5, profit_target2=.5, partial_sell2=0.5, days_threshold=10, price_threshold=0.05):
-        self.position_size = position_size
-        self.stop_loss = stop_loss
-        self.profit_target1 = profit_target1
-        self.partial_sell1 = partial_sell1
-        self.profit_target2 = profit_target2
-        self.partial_sell2 = partial_sell2
-        self.days_threshold = days_threshold
-        self.price_threshold = price_threshold
+    def __init__(self):
+        self.position_size = config.position_size
+        self.stop_loss = config.stop_loss
+        self.profit_target1 = config.profit_target1
+        self.partial_sell1 = config.partial_sell1
+        self.profit_target2 = config.profit_target2
+        self.partial_sell2 = config.partial_sell2
+        self.days_threshold = config.days_threshold
+        self.price_threshold = config.price_threshold
 
     def apply_indicators(self, df):
         # Apply indicators
