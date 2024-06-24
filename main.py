@@ -81,8 +81,8 @@ def main():
 
     data = process_selected_data(ticker, option, start_date, end_date)
 
-    Backtesting = backtesting_frameworks[backtesting_framework_name]
-    backtesting_framework = Backtesting(
+    backtesting = backtesting_frameworks[backtesting_framework_name]
+    backtesting_framework = backtesting(
         config.initial_balance,
         config.position_size,
         config.stop_loss,
