@@ -1,5 +1,7 @@
 import os
 import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
 from datetime import datetime
 from strategies.Strategy1_Backtesting import Strategy1Backtesting
 from strategies.strategy1 import BollingerKeltnerChaikinSMAStrategy
@@ -36,7 +38,6 @@ def process_selected_data(ticker, option, start_date, end_date):
     return data
 
 def save_backtesting_results(performance, trade_history, metrics, filename):
-    # Combine trade history and metrics into a single DataFrame
     trade_history_df = pd.DataFrame(trade_history)
     metrics_df = pd.DataFrame(list(metrics.items()), columns=['Metric', 'Value'])
     metrics_df['date'] = None
@@ -44,18 +45,54 @@ def save_backtesting_results(performance, trade_history, metrics, filename):
     combined_df.to_csv(filename, index=False)
     print(f"Backtesting results saved to {filename}")
 
+def plot_equity_curve(trade_history):
+    plt.figure(figsize=(10, 6))
+    plt.plot(trade_history['date'], trade_history['balance'], label='Equity')
+    plt.axhline(100000, color='green', linestyle='--', label=f'Starting Balance: {100000}')
+    z = np.polyfit(pd.to_numeric(trade_history['date']), trade_history['balance'], 1)
+    p = np.poly1d(z)
+    plt.plot(trade_history['date'], p(pd.to_numeric(trade_history['date'])), color='blue', linestyle='--', label='Trend Line')
+    plt.title('Equity Curve')
+    plt.xlabel('Date')
+    plt.ylabel('Equity')
+    plt.xlim([datetime(2020, 1, 1), datetime(2024, 12, 31)])
+    plt.ylim([90000, 110000])
+    plt.legend()
+    plt.show()
+
+def plot_drawdown(trade_history):
+    running_max = trade_history['balance'].cummax()
+    drawdown = trade_history['balance'] / running_max - 1
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(trade_history['date'], drawdown, label='Drawdown')
+
+    # Adding a horizontal line at 0
+    plt.axhline(0, color='green', linestyle='--', label='Zero Line')
+    
+    # Adding a trend line
+    z = np.polyfit(pd.to_numeric(trade_history['date']), drawdown, 1)
+    p = np.poly1d(z)
+    plt.plot(trade_history['date'], p(pd.to_numeric(trade_history['date'])), color='blue', linestyle='--', label='Trend Line')
+    
+    plt.title('Drawdown')
+    plt.xlabel('Date')
+    plt.ylabel('Drawdown')
+    plt.xlim([datetime(2018, 1, 1), datetime(2024, 12, 31)])
+    plt.ylim([drawdown.min() * 1.3, 0.03]) 
+    plt.legend()
+    plt.show()
+
+
 def main():
-    # Load options and tickers from text files
     options = load_list_from_file('./stocks/options.txt')
     tickers = load_list_from_file('./stocks/tickers.txt')
 
-    # Get the user's choice of ticker and option
     ticker = get_user_selection(tickers, "Please select a stock or forex option by entering the corresponding number:")
     if ticker is None:
         return
     option = options[tickers.index(ticker)]
 
-    # Define available strategies and backtesting frameworks
     strategies = {
         'BollingerKeltnerChaikinSMAStrategy': BollingerKeltnerChaikinSMAStrategy,
         'Strategy2': Strategy2,
@@ -64,20 +101,16 @@ def main():
         'Strategy1Backtesting': Strategy1Backtesting,
     }
 
-    strategy_names = list(strategies.keys())
-    backtesting_framework_names = list(backtesting_frameworks.keys())
-
-    strategy_name = get_user_selection(strategy_names, "Please select a strategy by entering the corresponding number:")
+    strategy_name = get_user_selection(list(strategies.keys()), "Please select a strategy by entering the corresponding number:")
     if strategy_name is None:
         return
 
-    backtesting_framework_name = get_user_selection(backtesting_framework_names, "Please select a backtesting framework by entering the corresponding number:")
+    backtesting_framework_name = get_user_selection(list(backtesting_frameworks.keys()), "Please select a backtesting framework by entering the corresponding number:")
     if backtesting_framework_name is None:
         return
 
-    # Set date range for data fetching
-    start_date = "2020-01-01"
-    end_date = datetime.today().strftime('%Y-%m-%d')
+    start_date = "2018-01-01"
+    end_date = "2024-12-31"
 
     data = process_selected_data(ticker, option, start_date, end_date)
 
@@ -94,20 +127,16 @@ def main():
         config.price_threshold,
     )
 
-    # Instantiate the selected strategy
     strategy_instance = strategies[strategy_name]()
 
-    # Apply strategy to data
     long_signals, short_signals = strategy_instance.execute(data)
     backtesting_framework.apply_signals(data, long_signals, short_signals)
 
-    # Get performance and trade history
     performance = backtesting_framework.get_performance()
     trade_history = backtesting_framework.get_trade_history()
 
-    # Corrected profit calculation only for rows with 'full_exit'
     last_full_exit_balance = config.initial_balance
-    trade_history['profit'] = 0
+    trade_history['profit'] = 0.0
 
     for i, row in trade_history.iterrows():
         if row['type'] == 'full_exit':
@@ -118,7 +147,6 @@ def main():
     
     metrics = backtesting_framework.calculate_metrics()
 
-    # Save results to CSV
     results_dir = "backtesting_results"
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
@@ -126,17 +154,22 @@ def main():
     results_filename = os.path.join(results_dir, f"{ticker}_{strategy_name}_{backtesting_framework_name}_backtesting_results.csv")
     save_backtesting_results(performance, trade_history, metrics, results_filename)
 
+    trade_history_df = pd.DataFrame(trade_history)
+
     print("Backtesting complete.")
     print("Performance Summary:")
     print(performance)
     print("Trade History:")
-    print(pd.DataFrame(trade_history))
+    print(trade_history_df)
     print("Metrics:")
     for metric, value in metrics.items():
         if metric in ['Total Return', 'Annualized Return', 'Annualized Volatility', 'Max Drawdown']:
             print(f"{metric}: {value * 100:.2f}%")
         else:
             print(f"{metric}: {value:.2f}")
+
+    plot_equity_curve(trade_history_df)
+    plot_drawdown(trade_history_df)
 
 if __name__ == "__main__":
     main()
