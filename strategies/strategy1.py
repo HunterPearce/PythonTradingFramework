@@ -1,9 +1,10 @@
 import pandas as pd
 import numpy as np
 import pandas_ta as ta
+from backtesting import Strategy
 import config
 
-class BollingerKeltnerChaikinSMAStrategy:
+class BollingerKeltnerChaikinSMAStrategy(Strategy):
     """
     Bollinger-Keltner Chaikin SMA Strategy
     --------------------------------------
@@ -11,60 +12,161 @@ class BollingerKeltnerChaikinSMAStrategy:
     and a Simple Moving Average (SMA) to generate long and short signals.
     
     The strategy goes long when the upper Bollinger Band is below the upper Keltner Band, 
-    the lower Bollinger Band is above the lower Keltner Band, the Chaikin Oscillator is above 
+    the lower Bollinger Band is above the lower Keltner Band, the Chaikin Oscillator crosses above 
     zero, and the 100-period SMA is rising. 
 
-    It goes short when the opposite conditions are met.
+    It goes short when the upper Bollinger Band is below the upper Keltner Band, 
+    the lower Bollinger Band is above the lower Keltner Band, the Chaikin Oscillator crosses below 
+    zero, and the 100-period SMA is falling.
     """
 
-    def __init__(self):
-        self.position_size = config.position_size
-        self.stop_loss = config.stop_loss
-        self.profit_target1 = config.profit_target1
-        self.partial_sell1 = config.partial_sell1
-        self.profit_target2 = config.profit_target2
-        self.partial_sell2 = config.partial_sell2
-        self.days_threshold = config.days_threshold
-        self.price_threshold = config.price_threshold
+    def init(self):
+        # Debugging: Print data before applying indicators
+        print("Initializing strategy...")
+        print(self.data.df.head())
 
-    def apply_indicators(self, df):
-        # Apply indicators
-        bb = ta.bbands(df['Close'], length=20)
-        df['bb_upper'] = bb['BBU_20_2.0']
-        df['bb_lower'] = bb['BBL_20_2.0']
-        
-        kc = ta.kc(df['High'], df['Low'], df['Close'], length=20, scalar=2)
-        df['kc_upper'] = kc['KCUe_20_2.0']
-        df['kc_lower'] = kc['KCLe_20_2.0']
-        
-        df['chaikin'] = ta.adosc(df['High'], df['Low'], df['Close'], df['Volume'], fast=3, slow=10)
-        
-        df['sma_100'] = ta.sma(df['Close'], length=100)
-        
-        return df
+        # Apply Bollinger Bands
+        close_prices = pd.Series(self.data.Close)
+        print("Close prices:")
+        print(close_prices.head())
 
-    def generate_signals(self, df):
-        # Generate long signals
-        df['signal_long'] = np.where(
-            (df['bb_upper'] < df['kc_upper']) &
-            (df['bb_lower'] > df['kc_lower']) &
-            (df['chaikin'] > 0) &
-            (df['Close'] > df['sma_100']),
-            1, 0
-        )
-        
-        # Generate short signals
-        df['signal_short'] = np.where(
-            (df['bb_upper'] > df['kc_upper']) &
-            (df['bb_lower'] < df['kc_lower']) &
-            (df['chaikin'] < 0) &
-            (df['Close'] < df['sma_100']),
-            -1, 0
-        )
-        
-        return df['signal_long'], df['signal_short']
+        bb = ta.bbands(close_prices, length=20)
+        if bb is not None:
+            print("Bollinger Bands calculated:")
+            print(bb.head(25))  # Print first 25 values to see the NaNs and valid data
+            self.bb_upper = self.I(lambda x: bb['BBU_20_2.0'].values, self.data.Close)
+            self.bb_lower = self.I(lambda x: bb['BBL_20_2.0'].values, self.data.Close)
+        else:
+            raise ValueError("Bollinger Bands calculation returned None")
 
-    def execute(self, df):
-        df = self.apply_indicators(df)
-        long_signals, short_signals = self.generate_signals(df)
-        return long_signals, short_signals
+        # Apply Keltner Channels
+        high_prices = pd.Series(self.data.High)
+        low_prices = pd.Series(self.data.Low)
+        kc = ta.kc(high_prices, low_prices, close_prices, length=20, scalar=2)
+        if kc is not None:
+            print("Keltner Channels calculated:")
+            print(kc.head(25))  # Print first 25 values to see the NaNs and valid data
+            self.kc_upper = self.I(lambda x: kc['KCUe_20_2.0'].values, self.data.Close)
+            self.kc_lower = self.I(lambda x: kc['KCLe_20_2.0'].values, self.data.Close)
+        else:
+            raise ValueError("Keltner Channels calculation returned None")
+
+        # Apply Chaikin Oscillator
+        volume = pd.Series(self.data.Volume)
+        self.chaikin = self.I(ta.adosc, high_prices, low_prices, close_prices, volume, fast=3, slow=10)
+
+        # Apply 100-period SMA
+        self.sma_100 = self.I(ta.sma, close_prices, length=100)
+        
+        # Initialize stop-loss and tracking variables
+        self.stop_loss = None
+        self.entry_price = None
+        self.partial_sell_1 = None
+        self.partial_sell_2 = None
+        self.entry_time = None
+
+    def next(self):
+        # Calculate stop-loss price if not already set
+        if self.position:
+            if self.stop_loss is None:
+                self.stop_loss = self.data.Close[-1] * (1 - config.stop_loss if self.position.is_long else 1 + config.stop_loss)
+                self.entry_price = self.data.Close[-1]
+                self.entry_time = self.data.index[-1]
+
+            # Partial Sell Conditions
+            current_price = self.data.Close[-1]
+            if self.position.is_long:
+                # If 2x position size is reached
+                if self.partial_sell_1 is None and current_price >= 2 * self.entry_price:
+                    self.position.close(portion=config.partial_sell1)
+                    self.stop_loss = self.entry_price * 1.2
+                    self.partial_sell_1 = current_price
+
+                # If 2.5x position size is reached
+                elif self.partial_sell_1 is not None and self.partial_sell_2 is None and current_price >= 2.5 * self.entry_price:
+                    self.position.close(portion=config.partial_sell2)
+                    self.stop_loss = self.partial_sell_1 * 1.2
+                    self.partial_sell_2 = current_price
+
+                # If 3x position size is reached
+                elif self.partial_sell_2 is not None and current_price >= 3 * self.entry_price:
+                    self.position.close()
+
+                # Exit if price increase is not > 5% after 10 days
+                elif self.entry_time is not None and (self.data.index[-1] - self.entry_time).days >= 10:
+                    if (current_price / self.entry_price) <= 1.05:
+                        self.position.close()
+                        self.stop_loss = None
+                        self.entry_price = None
+                        self.partial_sell_1 = None
+                        self.partial_sell_2 = None
+                        self.entry_time = None
+
+                # Stop-loss
+                elif current_price < self.stop_loss:
+                    self.position.close()
+                    self.stop_loss = None
+                    self.entry_price = None
+                    self.partial_sell_1 = None
+                    self.partial_sell_2 = None
+                    self.entry_time = None
+
+            elif self.position.is_short:
+                # If 2x position size is reached
+                if self.partial_sell_1 is None and current_price <= 0.5 * self.entry_price:
+                    self.position.close(portion=config.partial_sell1)
+                    self.stop_loss = self.entry_price * 0.8
+                    self.partial_sell_1 = current_price
+
+                # If 2.5x position size is reached
+                elif self.partial_sell_1 is not None and self.partial_sell_2 is None and current_price <= 0.4 * self.entry_price:
+                    self.position.close(portion=config.partial_sell2)
+                    self.stop_loss = self.partial_sell_1 * 0.8
+                    self.partial_sell_2 = current_price
+
+                # If 3x position size is reached
+                elif self.partial_sell_2 is not None and current_price <= 0.333 * self.entry_price:
+                    self.position.close()
+
+                # Exit if price decrease is not > 5% after 10 days
+                elif self.entry_time is not None and (self.data.index[-1] - self.entry_time).days >= 10:
+                    if (self.entry_price / current_price) <= 1.05:
+                        self.position.close()
+                        self.stop_loss = None
+                        self.entry_price = None
+                        self.partial_sell_1 = None
+                        self.partial_sell_2 = None
+                        self.entry_time = None
+
+                # Stop-loss
+                elif current_price > self.stop_loss:
+                    self.position.close()
+                    self.stop_loss = None
+                    self.entry_price = None
+                    self.partial_sell_1 = None
+                    self.partial_sell_2 = None
+                    self.entry_time = None
+
+        # Check if the 100 SMA is rising or falling
+        sma_rising = self.sma_100[-1] > self.sma_100[-2]
+        sma_falling = self.sma_100[-1] < self.sma_100[-2]
+
+        # Buy signal
+        if (self.bb_upper[-1] < self.kc_upper[-1] and
+            self.bb_lower[-1] > self.kc_lower[-1] and
+            self.chaikin[-2] < 0 and self.chaikin[-1] > 0 and  # Chaikin Oscillator crosses above zero
+            sma_rising):
+            self.buy()
+            self.stop_loss = self.data.Close[-1] * (1 - config.stop_loss)  # Set stop-loss for long position
+            self.entry_price = self.data.Close[-1]
+            self.entry_time = self.data.index[-1]
+
+        # Sell signal
+        if (self.bb_upper[-1] < self.kc_upper[-1] and
+            self.bb_lower[-1] > self.kc_lower[-1] and
+            self.chaikin[-2] > 0 and self.chaikin[-1] < 0 and  # Chaikin Oscillator crosses below zero
+            sma_falling):
+            self.sell()
+            self.stop_loss = self.data.Close[-1] * (1 + config.stop_loss)  # Set stop-loss for short position
+            self.entry_price = self.data.Close[-1]
+            self.entry_time = self.data.index[-1]
